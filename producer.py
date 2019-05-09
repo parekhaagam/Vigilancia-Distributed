@@ -18,11 +18,11 @@ class Webcam_Producer():
                  source=0,
                  camera_id: str = 'camera_generic',
                  topic: str = 'pyturestream',
-                 server: str = '127.0.0.1:9092'):
+                 server: str = 'localhost:9092'):
 
         logger.info('-'*50)
-        logger.info(f'Initialized camera "{camera_id}" with source {source}.')
-        logger.info(f'Send to "{topic}" on "{server}" every {interval} sec.')
+        logger.info('Initialized camera "{camera_id}" with source {source}.')
+        logger.info('Send to "{topic}" on "{server}" every {interval} sec.')
 
         # Class Variables
         self.interval = interval  # Interval for Photos in Seconds
@@ -44,9 +44,9 @@ class Webcam_Producer():
 
     def stream_video(self):
         """Start streaming video frames to Kafka forever."""
-        logger.info(f'Start capturing frames every {self.interval} sec.')
-        video = cv2.VideoCapture('C:\\spark\\bin\\code\\v1.mp4')
-        logger.info(f'video open status: {video.isOpened()}')
+        logger.info('Start capturing frames every {self.interval} sec.')
+        video = cv2.VideoCapture('v1.mp4')
+        logger.info('video open status: {video.isOpened()}')
         while video.isOpened():
 
             success, image = video.read()
@@ -62,7 +62,7 @@ class Webcam_Producer():
                 }
                 self.send_to_kafka(result)
             else:
-                logger.error(f'Could not read image from source {self.video_source}!')
+                logger.error('Could not read image from source {self.video_source}!')
             time.sleep(self.interval)
 
         video.release()
@@ -74,7 +74,7 @@ class Webcam_Producer():
 
 if __name__ == '__main__':
     # Set source='demo.mp4' for streaming video file
-    Webcam_Producer(interval=3,
+    Webcam_Producer(interval=1,
                     source='v1.mp4',
                     camera_id='holger_cam',
                     server='localhost:9092',

@@ -1,0 +1,21 @@
+    
+*.pyc
+*~
+*.kate-swp
+.directory
+
+# Ignore all model weights and config files.
+
+# Ignore all extras.
+/extras/*
+# Except keep folder.
+!/extras/.gitkeep
+
+# Igonore all mp3 wav and mp4 files
+*.mp4
+*.mp3
+/optdatazookeeper/*
+/optkafka_logs/*
+*.jpg
+*.jpeg
+*.png
