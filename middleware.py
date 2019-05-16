@@ -23,6 +23,10 @@ from pyspark.streaming.kafka import KafkaUtils
 from kafka import KafkaProducer
 import cv2
 
+import time
+import collections
+import vgconf
+
 from core.services import SuspicionDetection
 
 
@@ -42,6 +46,7 @@ class Spark_Object_Detector():
                  kafka_endpoint='127.0.0.1:9092'):
         self.detector = SuspicionDetection.SuspicionDetection()
         self.detector.enable_yolo_detection()
+        self.detector.enable_firearm_detection()
         """Initialize Spark & TensorFlow environment."""
         self.topic_to_consume = topic_to_consume
         self.topic_for_produce = topic_for_produce
@@ -60,8 +65,43 @@ class Spark_Object_Detector():
         log4jLogger.LogManager.getLogger('akka').setLevel(log_level)
         log4jLogger.LogManager.getLogger('kafka').setLevel(log_level)
         self.logger = log4jLogger.LogManager.getLogger(__name__)
+        self.objects_detector_prediction = []
+        self.objects_detected_view_text=""
 
-     
+    def _update_predictions(self):
+        self.objects_detector_prediction = self.detector.get_yolo_prediction()
+        self.firearm_detector_prediction = (
+            self.detector.get_firearm_detector_prediction())
+        self.activity_detector_prediction = (
+            self.detector.get_activity_detector_prediction())
+        self.event_detector_prediction = (
+            self.detector.get_event_detector_prediction())
+
+        self.detected_objects = []
+        if self.objects_detector_prediction:
+            self.detected_objects.extend(self.objects_detector_prediction)
+        if self.firearm_detector_prediction:
+            self.detected_objects.extend(self.firearm_detector_prediction)
+
+        if self.detected_objects:
+            self._update_detected_objects(self.detected_objects)
+
+    def _update_detected_objects(self, objects_prediction):
+        parsed_objects = [p['label'] for p in objects_prediction]
+        parsed_objects_dict = collections.Counter(parsed_objects)
+        detected_suspicious_objects = False
+        objects = ''
+
+        for (obj, count) in parsed_objects_dict.items():
+            objects += '%s (%d)\n' % (obj, count)
+            if obj in vgconf.SUSPICIOUS_OBJECTS_LIST:
+                detected_suspicious_objects = True
+
+        self.objects_detected_view_text = objects
+
+        # Start alert if suspicious object is detected.
+        # if detected_suspicious_objects:
+        #     self._start_alert()
 
     def start_processing(self):
         """Start consuming from Kafka endpoint and detect objects."""
@@ -72,12 +112,6 @@ class Spark_Object_Detector():
         kvs.foreachRDD(self.handler)
         self.ssc.start()
         self.ssc.awaitTermination()
-
-
-
-    def initilize_vigilancia_detector(self):
-        self.objects_detector_prediction = []
-        
 
     def load_image_into_numpy_array(self, image):
         """Convert PIL image to numpy array."""
@@ -97,17 +131,19 @@ class Spark_Object_Detector():
         # Prepare object for sending to endpoint
         result = {'timestamp': event['timestamp'],
                   'camera_id': event['camera_id'],
-                  'image': self.get_box_plot(img)
+                  'image': self.get_box_plot(img),
+                  'prediction': self.objects_detected_view_text
                   }
         return json.dumps(result)
 
     def get_box_plot(self,img):
         self.detector.detect(img)
         frame = self.detector.plot_objects(img)
-        cv2.imwrite("abc.jpg",frame)
-        img = cv2.imread("abc.jpg")
-        img = cv2.imencode('.jpg', img)
-        img_as_text = base64.b64encode(img).decode('utf-8')
+        self._update_predictions()
+        # cv2.imwrite("abc12.jpg",frame)
+        # img = cv2.imread("abc12.jpg")
+        img_str = cv2.imencode('.jpeg', frame)[1]
+        img_as_text = base64.b64encode(img_str).decode('utf-8')
         return img_as_text
 
     def handler(self, timestamp, message):
@@ -130,7 +166,8 @@ class Spark_Object_Detector():
             dt_event = dt.datetime.strptime(
                 event['timestamp'], '%Y-%m-%dT%H:%M:%S.%f')
             delta = dt_now - dt_event
-            if delta.seconds > 3:
+            print("timestamp = " + str(dt_event))
+            if delta.seconds > 5:
                 continue
             to_process[event['camera_id']] = event
 
@@ -142,12 +179,13 @@ class Spark_Object_Detector():
                              event['camera_id'] + ' - ' + event['timestamp'])
             start = timer()
             detection_result = self.detect_objects(event)
+            self.logger.info('prediction: ' + self.objects_detected_view_text)
             end = timer()
             delta = end - start
             self.logger.info('Done after ' + str(delta) + ' seconds.')
             self.producer.send(self.topic_for_produce, detection_result.encode('utf-8'))
             self.logger.info('Sent image to Kafka endpoint.')
-            # self.producer.flush()
+            self.producer.flush()
 
 
 if __name__ == '__main__':
