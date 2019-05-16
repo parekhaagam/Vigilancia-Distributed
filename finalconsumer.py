@@ -5,6 +5,7 @@ import json
 import base64
 import cv2
 import numpy as np
+from flask import Flask, render_template, Response
 # Fire up the Kafka Consumer
 topic = "resultstream"
 
@@ -15,6 +16,11 @@ consumer = KafkaConsumer(
 
 # Set the consumer in a Flask App
 app = Flask(__name__)
+
+
+@app.route('/')
+def index():
+    return render_template('video.html')
 
 @app.route('/video', methods=['GET'])
 def video():
@@ -33,15 +39,18 @@ def get_video_stream():
     them to a Flask-readable format.
     """
     for msg in consumer:
-        json_from_consumer = json.loads(msg[-6].decode('UTF-8'))
+        json_from_consumer = json.loads(msg[-6].decode('utf-8'))
         print(json_from_consumer['image'])
+        #nparr = np.fromstring(json_from_consumer['image'], np.uint8)
+        #img = cv2.imdecode(nparr, cv2.CV_LOAD_IMAGE_COLOR)
         decoded = base64.b64decode(json_from_consumer['image'])
-        filename = 'C:\\Users\\hp\\Desktop\\codev1frame1.jpg'  # I assume you have a way of picking unique filenames
-        with open(filename, 'wb') as f:
-            f.write(decoded)
+        # filename = 'C:\\Users\\hp\\Desktop\\codev1frame1.jpg'  # I assume you have a way of picking unique filenames
+        # with open(filename, 'wb') as f:
+        #     f.write(decoded)
         #ret, jpeg = cv2.imencode('.jpg', decoded)
         yield (b'--frame\r\n'
                b'Content-Type: image/jpg\r\n\r\n' + decoded + b'\r\n\r\n')
+
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0',port=5002,threaded=True, debug=True)

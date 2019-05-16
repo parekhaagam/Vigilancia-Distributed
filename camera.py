@@ -11,9 +11,9 @@ class VideoCamera(object):
         # Using OpenCV to capture from device 0. If you have trouble capturing
         # from a webcam, comment the line below out and use a video file
         # instead.
-        self.video = cv2.VideoCapture('v2.mp4')
-       	self.interval = 0.3
-       	self.source = 'v2.mp4'
+        self.video = cv2.VideoCapture('v3.mp4')
+       	self.interval = 1
+       	self.source = 'v3.mp4'
        	self.camera_id = 'holger_cam'
        	self.server = 'localhost:9092'
        	self.topic = 'test'
@@ -49,7 +49,7 @@ class VideoCamera(object):
         }
         #count_frame = 0
         self.send_to_kafka(result)
-        time.sleep(0.333333)
+        time.sleep(0.3)
         #count_frame = count_frame + 1
 
     def send_to_kafka(self, data):
@@ -66,5 +66,5 @@ class VideoCamera(object):
         # We are using Motion JPEG, but OpenCV defaults to capture raw images,
         # so we must encode it into JPEG in order to correctly display the
         # video stream.
-        ret, jpeg = cv2.imencode('.jpg', image)
+        ret, jpeg = cv2.imencode('.jpeg', image)
         return jpeg.tobytes(),jpeg
