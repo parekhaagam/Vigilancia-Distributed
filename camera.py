@@ -35,22 +35,16 @@ class VideoCamera(object):
 
     def stream_video(self,image):
         """Start streaming video frames to Kafka forever."""
-        # logger.info('Start capturing frames every {self.interval} sec.')
-        # video = cv2.VideoCapture('v2.mp4')
-        # logger.info('video open status: {video.isOpened()}')
-        # count_frame = 1
+        
         timestamp = dt.datetime.now().isoformat()
-        # if count_frame == 30:
         jpg_as_text = base64.b64encode(image).decode('utf-8')
         result = {
             'image': jpg_as_text,
             'timestamp': dt.datetime.now().isoformat(),
             'camera_id': self.camera_id
         }
-        #count_frame = 0
         self.send_to_kafka(result)
         time.sleep(0.3)
-        #count_frame = count_frame + 1
 
     def send_to_kafka(self, data):
 

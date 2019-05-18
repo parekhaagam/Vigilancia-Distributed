@@ -5,7 +5,7 @@ a result containing annotate video frame and sends it to another topic of the
 same Kafka Endpoint.
 
 """
-# Utility imports
+
 from __future__ import print_function
 import base64
 import json
@@ -16,7 +16,6 @@ from PIL import Image
 import datetime as dt
 from random import randint
 
-# Streaming imports
 from pyspark import SparkContext
 from pyspark.streaming import StreamingContext
 from pyspark.streaming.kafka import KafkaUtils
@@ -31,23 +30,22 @@ from core.services import SuspicionDetection
 
 
 class Spark_Object_Detector():
-    """Stream WebCam Images to Kafka Endpoint.
-
-    Keyword arguments:
-    source -- Index of Video Device or Filename of Video-File
-    interval -- Interval for capturing images in seconds (default 5)
-    server -- Host + Port of Kafka Endpoint (default '127.0.0.1:9092')
-    """
+    """Stream WebCam Images to Kafka Endpoint."""
 
     def __init__(self,
                  interval=10,
                  topic_to_consume='test',
                  topic_for_produce='resultstream',
                  kafka_endpoint='127.0.0.1:9092'):
+        
+        """ Initialize our yolo and firearm model"""
+
         self.detector = SuspicionDetection.SuspicionDetection()
         self.detector.enable_yolo_detection()
         self.detector.enable_firearm_detection()
+        
         """Initialize Spark & TensorFlow environment."""
+        
         self.topic_to_consume = topic_to_consume
         self.topic_for_produce = topic_for_produce
         self.kafka_endpoint = kafka_endpoint
@@ -55,7 +53,7 @@ class Spark_Object_Detector():
         # Create Kafka Producer for sending results
         self.producer = KafkaProducer(bootstrap_servers=kafka_endpoint)
 
-        sc = SparkContext(appName='PyctureStream')
+        sc = SparkContext(appName='FirmArmDetection')
         self.ssc = StreamingContext(sc, interval)  # , 3)
 
         # Make Spark logging less extensive
@@ -99,6 +97,7 @@ class Spark_Object_Detector():
 
         self.objects_detected_view_text = objects
 
+        """ Do when suspicious object is detected """
         # Start alert if suspicious object is detected.
         # if detected_suspicious_objects:
         #     self._start_alert()
@@ -113,21 +112,19 @@ class Spark_Object_Detector():
         self.ssc.start()
         self.ssc.awaitTermination()
 
-    def load_image_into_numpy_array(self, image):
-        """Convert PIL image to numpy array."""
-        (im_width, im_height) = image.size
-        return np.array(image.getdata()).reshape(
-            (im_height, im_width, 3)).astype(np.uint8)
-
     
     def detect_objects(self, event):
-        """Use TensorFlow Model to detect objects."""
-        # Load the image data from the json into PIL image & numpy array
+        """Use Yolo and Incepiton Model to detect objects."""
+        
         decoded = base64.b64decode(event['image'])
+        
+        # TODO: Picking unique filenames or find a way to send it to kafka  
+
         filename = 'C:\\Users\\hp\\Desktop\\codev1frame.jpg'  # I assume you have a way of picking unique filenames
         with open(filename, 'wb') as f:
             f.write(decoded)
         img = cv2.imread(filename)
+
         # Prepare object for sending to endpoint
         result = {'timestamp': event['timestamp'],
                   'camera_id': event['camera_id'],
@@ -140,8 +137,6 @@ class Spark_Object_Detector():
         self.detector.detect(img)
         frame = self.detector.plot_objects(img)
         self._update_predictions()
-        # cv2.imwrite("abc12.jpg",frame)
-        # img = cv2.imread("abc12.jpg")
         img_str = cv2.imencode('.jpeg', frame)[1]
         img_as_text = base64.b64encode(img_str).decode('utf-8')
         return img_as_text
@@ -186,7 +181,6 @@ class Spark_Object_Detector():
             self.producer.send(self.topic_for_produce, detection_result.encode('utf-8'))
             self.logger.info('Sent image to Kafka endpoint.')
             self.producer.flush()
-
 
 if __name__ == '__main__':
     sod = Spark_Object_Detector(
